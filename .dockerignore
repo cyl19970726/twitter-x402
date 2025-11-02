@@ -1,0 +1,13 @@
+node_modules
+.env
+.git
+.gitignore
+*.md
+docs/
+tests/
+.vscode/
+.idea/
+*.log
+dist/
+api/
+src/agent.ts.backup
