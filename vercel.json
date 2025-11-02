@@ -1,7 +1,8 @@
 {
   "version": 2,
+  "buildCommand": "bun run build:vercel",
   "functions": {
-    "api/**/*.ts": {
+    "api/index.js": {
       "maxDuration": 800,
       "memory": 3008
     }
