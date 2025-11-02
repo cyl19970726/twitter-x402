@@ -47,4 +47,4 @@ coverage/
 .vercel
 .railway
 .render
-api/index.js
+# api/index.js - committed to git for Vercel deployment

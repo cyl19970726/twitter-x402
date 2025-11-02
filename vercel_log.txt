@@ -1,0 +1,179 @@
+# Vercel 部署失败记录与解决方案
+
+## 核心问题
+Vercel Serverless Functions **只打包 api/ 目录内的文件**，不会自动包含父目录（如 src/）的代码。
+
+---
+
+## 所有失败尝试总结
+
+### 尝试 1: 内联所有代码到 api/index.ts
+**做法**: 把 800 行代码全部复制粘贴到 api/index.ts
+**结果**: ✅ 可以工作
+**问题**: 代码重复、难以维护、傻逼实现
+
+---
+
+### 尝试 2: 使用 vercel.json 的 buildCommand
+**做法**:
+```json
+{
+  "buildCommand": "bun build api/index.ts --outfile api/index.js ...",
+  "functions": { "api/index.js": {...} }
+}
+```
+**结果**: ❌ 失败
+**错误**: `The pattern "api/index.js" doesn't match any Serverless Functions`
+**根本原因**: Vercel 在运行 buildCommand **之前**就检查 functions 配置，此时 api/index.js 还不存在
+
+**Vercel 执行顺序**:
+1. 读取 vercel.json
+2. **验证 functions 配置（检查文件是否存在）** ← 在这里失败
+3. 运行 buildCommand ← 永远执行不到
+4. 部署
+
+---
+
+### 尝试 3: 使用通配符 api/**/*.js
+**做法**:
+```json
+{
+  "buildCommand": "...",
+  "functions": { "api/**/*.js": {...} }
+}
+```
+**结果**: ❌ 失败
+**错误原因**: 同上，Vercel 先检查文件是否存在，再运行构建
+
+---
+
+### 尝试 4: 让 Vercel 自动打包 TypeScript
+**做法**:
+```json
+{
+  "functions": { "api/**/*.ts": {...} }
+}
+```
+没有 buildCommand，让 Vercel 自己编译 TypeScript
+
+**结果**: ❌ 失败
+**错误**: `Cannot find module '/var/task/src/agent-improved'`
+**根本原因**: **Vercel 的内置 TypeScript 编译器不会打包 api/ 目录外的依赖**
+
+---
+
+### 尝试 5: 使用 package.json 的 build 脚本
+**做法**:
+```json
+// package.json
+{
+  "scripts": {
+    "build": "bun build api/index.ts --outfile api/index.js ..."
+  }
+}
+```
+
+**期望**: Vercel 会自动运行 `npm run build` 或 `bun run build`
+**结果**: ❌ 失败
+**错误**: 同尝试 2，`The pattern "api/index.js" doesn't match`
+**根本原因**: **Vercel 只对有 outputDirectory 的项目才会自动运行 build 脚本**
+
+从日志可以看到：
+```
+Running "vercel build"
+```
+而不是：
+```
+Running "bun run build"
+```
+
+这说明 Vercel 根本没运行我们的 build 脚本。
+
+---
+
+## 正确的解决方案
+
+### 方案 A: 在 Vercel Dashboard 配置 Build Command（推荐）
+
+**步骤**:
+1. 进入 Vercel Project Dashboard
+2. Settings → General → Build & Development Settings
+3. 配置：
+   - **Build Command**: `bun run build` 或直接 `bun build api/index.ts --outfile api/index.js --target node --format esm --minify --external @vercel/node`
+   - **Output Directory**: 留空或 `.`
+   - **Install Command**: `bun install`
+
+4. vercel.json 保持简单：
+```json
+{
+  "version": 2,
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 800,
+      "memory": 3008
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ]
+}
+```
+
+**工作流程**:
+1. Vercel 运行 Build Command → 生成 api/index.js
+2. Vercel 检查 functions 配置 → 找到 api/index.js ✓
+3. 部署成功
+
+---
+
+### 方案 B: 提交构建产物到 git（不推荐但最简单）
+
+**做法**:
+1. 从 .gitignore 移除 `api/index.js`
+2. 本地运行 `bun run build`
+3. 提交 api/index.js 到 git
+4. Vercel 直接使用已有的 api/index.js
+
+**优点**: 最简单，一定能工作
+**缺点**:
+- 每次修改都要手动构建
+- git 里有 4.4MB 的构建产物
+- 不优雅
+
+---
+
+### 方案 C: 使用 Vercel Build Output API（高级）
+
+创建 `.vercel/output/` 目录结构，完全控制输出。
+
+**不推荐**: 过于复杂
+
+---
+
+## 最终决定
+
+**使用方案 A**：在 Vercel Dashboard 设置 Build Command
+
+配置如下：
+- Build Command: `bun build api/index.ts --outfile api/index.js --target node --format esm --minify --external @vercel/node`
+- Install Command: `bun install`
+- Output Directory: (留空)
+- Development Command: `bun run dev`
+
+---
+
+## 重要教训
+
+1. **vercel.json 的 buildCommand 不可靠** - 它在 functions 验证之后才运行
+2. **Vercel 不会自动运行 package.json 的 build** - 除非项目有 outputDirectory
+3. **Vercel 的 TypeScript 编译不会打包外部依赖** - 不要依赖自动编译
+4. **Dashboard 配置 > vercel.json 配置** - Build Command 应该在 Dashboard 设置
+
+---
+
+## 当前状态
+
+等待在 Vercel Dashboard 配置 Build Command 后重新部署。
