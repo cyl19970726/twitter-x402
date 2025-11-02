@@ -9,7 +9,6 @@ bun.lock
 
 # Build output
 dist/
-api/
 *.js.map
 
 # Logs
