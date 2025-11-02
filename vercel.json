@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "installCommand": "bun install",
-  "buildCommand": "echo 'Build complete'",
   "functions": {
     "api/index.js": {
       "maxDuration": 800,
