@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "bun install && bun build api/index.ts --outfile api/index.js --target node --format esm --external @vercel/node",
-  "outputDirectory": "api",
   "functions": {
-    "api/**/*.js": {
+    "api/**/*.ts": {
       "maxDuration": 800,
       "memory": 3008
     }

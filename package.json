@@ -10,7 +10,7 @@
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir ./dist --target node --minify",
-    "build:vercel": "mkdir -p api && bun build src/index.ts --outfile api/index.js --target node --format esm",
+    "build:vercel": "bun build api/index.ts --outfile .vercel/output/functions/api/index.func/index.js --target node --format esm --external @vercel/node",
     "agent": "bun run src/agent.ts",
     "typecheck": "bunx tsc --noEmit"
   },
