@@ -44,7 +44,5 @@ coverage/
 .nyc_output/
 
 # Platform specific
-.vercel
 .railway
 .render
-# api/index.js - committed to git for Vercel deployment
