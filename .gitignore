@@ -47,3 +47,4 @@ coverage/
 .vercel
 .railway
 .render
+api/index.js
