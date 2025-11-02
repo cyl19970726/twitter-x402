@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "bun run build:vercel",
   "functions": {
     "api/index.js": {
       "maxDuration": 800,
