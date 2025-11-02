@@ -177,3 +177,89 @@ Running "bun run build"
 ## 当前状态
 
 等待在 Vercel Dashboard 配置 Build Command 后重新部署。
+
+---
+
+## 尝试 6: 提交构建产物到 git
+
+**做法**: 直接提交 `api/index.js` 到 git，让 Vercel 使用已有文件
+**结果**: ✅ 部署成功，但 ❌ 运行时崩溃
+**错误**: `Error: Could not find wrtc binary`
+
+**根本原因**: `@pacoyang/agent-twitter-client` 依赖了 `wrtc` 原生模块（C++ 二进制文件）
+
+**Vercel Serverless 限制**:
+- 不支持原生 Node.js 模块（.node 文件）
+- 无法运行需要编译的二进制依赖
+- Lambda 函数是无状态的，不支持系统级依赖
+
+---
+
+## 最终结论
+
+**Vercel Serverless Functions 不适合这个项目**
+
+原因：
+1. 项目依赖 `@pacoyang/agent-twitter-client`
+2. 该库依赖原生模块 `wrtc`（WebRTC）
+3. Vercel Serverless 不支持原生模块
+4. 即使成功部署，运行时也会崩溃
+
+---
+
+## 正确的平台选择
+
+### ✅ Railway（已选择）
+
+**为什么选择 Railway**:
+- 支持 Docker 容器部署
+- 可以运行原生 Node.js 模块
+- 支持长时间运行的进程
+- 自动从 Dockerfile 构建
+- 支持 FFmpeg 等系统工具
+
+**部署文件**:
+- `Dockerfile` - 容器配置
+- `railway.json` - Railway 配置
+- `.dockerignore` - 排除不需要的文件
+
+**Railway 部署步骤**:
+1. 连接 GitHub 仓库
+2. Railway 自动检测 Dockerfile
+3. 构建容器镜像
+4. 部署并运行
+
+---
+
+## 重要教训（更新）
+
+1. **检查依赖的兼容性** - 原生模块无法在 Serverless 环境运行
+2. **Serverless 有限制** - 不是所有应用都适合 Serverless
+3. **容器更灵活** - 对于有原生依赖的项目，使用容器平台
+4. **提前测试运行时** - 不要只看构建是否成功
+
+---
+
+## 从 Vercel 迁移到 Railway
+
+**已创建的文件**:
+- ✅ `Dockerfile` - 使用 Bun 镜像，安装 FFmpeg 和编译工具
+- ✅ `railway.json` - Railway 配置
+- ✅ `.dockerignore` - 优化构建速度
+
+**环境变量**:
+需要在 Railway Dashboard 设置以下环境变量：
+- `OPENAI_API_KEY`
+- `TWITTER_COOKIES`
+- `PRIVATE_KEY`
+- `FACILITATOR_URL`
+- `PAY_TO`
+- `NETWORK`
+- `PRICE_FORMAT_SPACE`
+- `PRICE_SUMMARIZE_SPACE`
+
+**下一步**:
+1. 在 Railway 创建新项目
+2. 连接 GitHub 仓库
+3. 设置环境变量
+4. Railway 自动构建和部署

@@ -1,25 +1,26 @@
-# 使用官方 Bun 镜像
-FROM oven/bun:1 AS base
+# Use Bun official image
+FROM oven/bun:1 as base
 WORKDIR /app
 
-# 安装依赖
-FROM base AS install
-RUN mkdir -p /temp/prod
-COPY package.json bun.lock /temp/prod/
-RUN cd /temp/prod && bun install --frozen-lockfile --production
+# Install system dependencies required for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-# 复制生产依赖和源代码
-FROM base AS release
-COPY --from=install /temp/prod/node_modules node_modules
+# Copy package files
+COPY package.json bun.lockb* ./
+
+# Install dependencies
+RUN bun install --frozen-lockfile
+
+# Copy source code
 COPY . .
 
-# 暴露端口
+# Expose port
 EXPOSE 8787
 
-# 设置环境变量
-ENV NODE_ENV=production
-ENV PORT=8787
-
-# 启动命令
-USER bun
-ENTRYPOINT ["bun", "run", "src/index.ts"]
+# Start the application
+CMD ["bun", "run", "src/index.ts"]
