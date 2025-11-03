@@ -2,9 +2,12 @@ import OpenAI from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to ensure env vars are loaded
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 export interface TranscriptionResult {
   text: string;
@@ -45,7 +48,7 @@ export async function transcribeAudio(
   try {
     const startTime = Date.now();
 
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await getOpenAI().audio.transcriptions.create({
       file: fs.createReadStream(audioPath),
       model: 'whisper-1',
       language: 'en', // 可以设为 'auto' 自动检测

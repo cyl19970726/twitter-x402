@@ -1,8 +1,11 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to ensure env vars are loaded
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 export interface FormattedTranscriptResult {
   participants: string[];
@@ -79,7 +82,7 @@ ${rawTranscript}`;
     console.log(`[1/2] Calling OpenAI API to format transcript...`);
     const startTime = Date.now();
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o', // 使用 GPT-4o 获得更好的说话人识别
       messages: [
         { role: 'system', content: systemPrompt },

@@ -1,8 +1,11 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to ensure env vars are loaded
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 export interface SummaryResult {
   summary: string;
@@ -45,8 +48,8 @@ Format your response as JSON with the following structure:
     console.log(`[1/2] Calling OpenAI API for summarization...`);
     const startTime = Date.now();
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-5', // 使用 GPT-4o mini 更经济
+    const completion = await getOpenAI().chat.completions.create({
+      model: 'gpt-5', // 
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
