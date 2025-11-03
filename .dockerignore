@@ -1,7 +1,7 @@
 node_modules
 .git
-.env
-.env.*
+.env.local
+.env.*.local
 *.log
 dist
 .vercel
