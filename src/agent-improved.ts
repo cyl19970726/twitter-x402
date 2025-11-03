@@ -118,7 +118,7 @@ addEntrypoint({
     "Download and transcribe a Twitter Space, then format it with speaker identification. Returns a structured dialogue with participants identified. Processing time: ~4 minutes for a 30-minute Space.",
 
   // 💰 Per-entrypoint pricing（从环境变量读取）
-  price: PRICE_FORMAT_SPACE,
+  price: "0.2",
   network: NETWORK as any,
 
   input: z.object({
@@ -193,7 +193,7 @@ addEntrypoint({
     "Download, transcribe, format, and summarize a finished Twitter Space. Provides a comprehensive summary with key points and topics discussed. Includes speaker identification. Processing time: ~4-5 minutes for a 30-minute Space.",
 
   // 💰 Per-entrypoint pricing（从环境变量读取）
-  price: PRICE_SUMMARIZE_SPACE,
+  price: "0.2",
   network: NETWORK as any,
 
   input: z.object({
