@@ -1,5 +1,14 @@
 import { app } from "./agent-improved";
 
+// Debug: Log environment variables on startup
+console.log("=== Environment Variables Check ===");
+console.log("PORT:", process.env.PORT);
+console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✓ Set" : "✗ Missing");
+console.log("TWITTER_COOKIES:", process.env.TWITTER_COOKIES ? "✓ Set" : "✗ Missing");
+console.log("PRIVATE_KEY:", process.env.PRIVATE_KEY ? "✓ Set" : "✗ Missing");
+console.log("NETWORK:", process.env.NETWORK);
+console.log("===================================");
+
 const port = Number(process.env.PORT ?? 8787);
 
 const server = Bun.serve({
