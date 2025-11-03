@@ -252,6 +252,8 @@ export async function downloadFinishedSpace(
 
   // 优先使用 cookies 认证
   const cookiesJson = process.env.TWITTER_COOKIES;
+  console.log(`  DEBUG: TWITTER_COOKIES type: ${typeof cookiesJson}`);
+  console.log(`  DEBUG: TWITTER_COOKIES value: ${cookiesJson ? cookiesJson.substring(0, 100) + '...' : 'undefined/null/empty'}`);
 
   if (cookiesJson) {
     console.log(`  Using cookies from TWITTER_COOKIES...`);
