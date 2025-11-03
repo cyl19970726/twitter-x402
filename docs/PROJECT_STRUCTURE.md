@@ -15,7 +15,7 @@ dreams/
 │   └── PROJECT_STRUCTURE.md           # This file
 │
 ├── src/                                # Source code
-│   ├── agent.ts                       # Agent manifest with entrypoints
+│   ├── agent-improved.ts                       # Agent manifest with entrypoints
 │   ├── index.ts                       # HTTP server
 │   ├── buildCookies.ts                # Build cookies from tokens
 │   ├── verifyCookies.ts               # Verify cookie validity

@@ -36,6 +36,14 @@ function generateFormattedTranscriptMarkdown(
   return markdown;
 }
 
+export interface SpaceFormatResult {
+  spaceUrl: string;
+  metadata: SpaceDownloadResult['metadata'];
+  transcription: TranscriptionResult;
+  formattedTranscript: FormattedTranscriptResult;
+  formattedTranscriptMarkdown: string;
+}
+
 export interface SpaceSummaryResult {
   spaceUrl: string;
   metadata: SpaceDownloadResult['metadata'];
@@ -47,7 +55,53 @@ export interface SpaceSummaryResult {
 }
 
 /**
- * 完整流程：从 Space URL 到总结
+ * 格式化流程：下载 + 转录 + 格式化（不包括总结）
+ */
+export async function formatSpaceFromUrl(
+  spaceUrl: string
+): Promise<SpaceFormatResult> {
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`Twitter Space Format Pipeline`);
+  console.log(`${'='.repeat(60)}\n`);
+  console.log(`Space URL: ${spaceUrl}\n`);
+
+  // Step 1: 下载 Space 音频
+  console.log(`\n[${'▶'.repeat(3)}] STEP 1: Download Space Audio\n`);
+  const downloadResult = await downloadFinishedSpace(spaceUrl);
+
+  // Step 2: 转录音频
+  console.log(`\n[${'▶'.repeat(3)}] STEP 2: Transcribe Audio\n`);
+  const transcription = await transcribeAudio(downloadResult.audioPath);
+
+  // Step 3: 格式化转录稿（识别说话人）
+  console.log(`\n[${'▶'.repeat(3)}] STEP 3: Format Transcript (Identify Speakers)\n`);
+  const formattedTranscript = await formatTranscript(
+    transcription.text,
+    downloadResult.metadata.title
+  );
+
+  // 生成格式化转录稿的 Markdown
+  const formattedTranscriptMarkdown = generateFormattedTranscriptMarkdown(
+    formattedTranscript,
+    downloadResult.metadata.title,
+    spaceUrl
+  );
+
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`✅ Format Pipeline Complete!`);
+  console.log(`${'='.repeat(60)}\n`);
+
+  return {
+    spaceUrl,
+    metadata: downloadResult.metadata,
+    transcription,
+    formattedTranscript,
+    formattedTranscriptMarkdown,
+  };
+}
+
+/**
+ * 完整流程：从 Space URL 到总结（包括格式化）
  */
 export async function summarizeSpaceFromUrl(
   spaceUrl: string

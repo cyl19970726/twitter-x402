@@ -23,7 +23,7 @@ import {
   AgentKitConfig,
   createAgentApp,
 } from "@lucid-dreams/agent-kit";
-import { summarizeSpaceFromUrl } from "./utils/summarizeSpace";
+import { formatSpaceFromUrl, summarizeSpaceFromUrl } from "./utils/summarizeSpace";
 
 // 注意：此文件不使用 createAxLLMClient
 // 原因：我们的 LLM 调用在 utils/ 中使用 OpenAI SDK 直接完成
@@ -150,8 +150,8 @@ addEntrypoint({
     const startTime = Date.now();
 
     try {
-      // 运行完整管道
-      const result = await summarizeSpaceFromUrl(spaceUrl);
+      // 运行格式化管道（不包括总结）
+      const result = await formatSpaceFromUrl(spaceUrl);
 
       const duration = (Date.now() - startTime) / 1000;
       console.log(`[format-twitter-space] ✅ Completed in ${duration.toFixed(1)}s`);
