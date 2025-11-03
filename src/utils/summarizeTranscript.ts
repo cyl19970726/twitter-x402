@@ -49,7 +49,7 @@ Format your response as JSON with the following structure:
     const startTime = Date.now();
 
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-5', // 
+      model: 'gpt-4o-mini', // 使用 GPT-4o mini 更经济
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
