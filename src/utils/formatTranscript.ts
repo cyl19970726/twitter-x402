@@ -100,7 +100,23 @@ ${rawTranscript}`;
       throw new Error('No response from OpenAI API');
     }
 
-    const result = JSON.parse(responseText) as FormattedTranscriptResult;
+    // 尝试解析 JSON，如果失败则记录详细信息
+    let result: FormattedTranscriptResult;
+    try {
+      result = JSON.parse(responseText) as FormattedTranscriptResult;
+    } catch (parseError) {
+      console.error('❌ JSON parse error. Response text (first 500 chars):');
+      console.error(responseText.substring(0, 500));
+      console.error('\n... (truncated)');
+      console.error('\nLast 200 chars:');
+      console.error(responseText.substring(responseText.length - 200));
+      throw new Error(`JSON parse error: ${(parseError as Error).message}. Response may be truncated or malformed.`);
+    }
+
+    // 验证结果结构
+    if (!result.participants || !result.formattedText) {
+      throw new Error('Invalid response structure: missing participants or formattedText');
+    }
 
     console.log(`✓ Identified ${result.participants.length} participants`);
     console.log(`✓ Participants: ${result.participants.join(', ')}`);
