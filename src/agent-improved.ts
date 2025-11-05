@@ -118,7 +118,10 @@ addEntrypoint({
     "Download and transcribe a Twitter Space, then format it with speaker identification. Returns a structured dialogue with participants identified. Processing time: ~4 minutes for a 30-minute Space.",
 
   // 💰 Per-entrypoint pricing（从环境变量读取）
-  price: "0.2",
+  price: {
+    invoke: "0.2",
+    stream: "0.2",
+  },
   network: NETWORK as any,
 
   input: z.object({
@@ -140,8 +143,8 @@ addEntrypoint({
     }).optional().describe("Cost breakdown for transparency"),
   }),
 
-  // ⚠️ 标记为长时间运行
-  streaming: false, // 当前不支持流式，但应该考虑添加进度更新
+  // ✅ 启用流式支持
+  streaming: true,
 
   async handler(ctx) {
     const { spaceUrl } = ctx.input;
@@ -181,6 +184,102 @@ addEntrypoint({
       };
     } catch (error) {
       console.error(`[format-twitter-space] ❌ Error:`, error);
+      throw new Error(`Failed to format Space transcript: ${(error as Error).message}`);
+    }
+  },
+
+  // 🌊 流式处理器
+  async stream(ctx, emit) {
+    const { spaceUrl } = ctx.input;
+
+    console.log(`[format-twitter-space/stream] Processing: ${spaceUrl}`);
+    const startTime = Date.now();
+
+    try {
+      // 运行格式化管道并发送进度更新
+      const result = await formatSpaceFromUrl(spaceUrl, async (step, message, details) => {
+        // 发送进度更新
+        if (details?.completed) {
+          // 步骤完成
+          await emit({
+            kind: "text",
+            text: `✓ Step ${details.step}/${details.total}: ${message}`,
+            mime: "text/plain"
+          });
+
+          // 发送详细信息
+          if (step === 'download' && details.title) {
+            await emit({
+              kind: "delta",
+              delta: `  Title: "${details.title}"\n  Size: ${details.sizeMB} MB\n\n`,
+              mime: "text/plain"
+            });
+          } else if (step === 'transcribe') {
+            await emit({
+              kind: "delta",
+              delta: `  Characters: ${details.characters.toLocaleString()}\n  Duration: ${Math.floor(details.durationSeconds / 60)}m ${Math.floor(details.durationSeconds % 60)}s\n\n`,
+              mime: "text/plain"
+            });
+          } else if (step === 'format') {
+            await emit({
+              kind: "delta",
+              delta: `  Participants: ${details.participants}\n  Speakers: ${details.speakerNames.join(', ')}\n\n`,
+              mime: "text/plain"
+            });
+          }
+        } else {
+          // 步骤开始
+          await emit({
+            kind: "text",
+            text: `⏳ Step ${details.step}/${details.total}: ${message}`,
+            mime: "text/plain"
+          });
+        }
+      });
+
+      const duration = (Date.now() - startTime) / 1000;
+      console.log(`[format-twitter-space/stream] ✅ Completed in ${duration.toFixed(1)}s`);
+
+      // 计算成本透明度
+      const audioDurationMin = (result.transcription.duration || 0) / 60;
+      const whisperCost = audioDurationMin * 0.006;
+      const gpt4oCost = 0.48;
+
+      // 发送完成消息
+      await emit({
+        kind: "text",
+        text: `\n✅ Processing complete in ${duration.toFixed(1)}s!\n`,
+        mime: "text/plain"
+      });
+
+      // 返回最终结果
+      return {
+        output: {
+          formattedTranscript: result.formattedTranscriptMarkdown,
+          participants: result.formattedTranscript.participants,
+          title: result.metadata.title,
+          duration: result.transcription.duration,
+          costBreakdown: {
+            whisper: parseFloat(whisperCost.toFixed(4)),
+            gpt4o: gpt4oCost,
+            total: parseFloat((whisperCost + gpt4oCost).toFixed(4)),
+          }
+        },
+        usage: {
+          total_tokens: result.transcription.text.length,
+          processing_time_seconds: duration,
+        }
+      };
+    } catch (error) {
+      console.error(`[format-twitter-space/stream] ❌ Error:`, error);
+
+      // 发送错误消息
+      await emit({
+        kind: "error",
+        code: "PROCESSING_ERROR",
+        message: (error as Error).message,
+      });
+
       throw new Error(`Failed to format Space transcript: ${(error as Error).message}`);
     }
   },

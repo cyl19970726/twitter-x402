@@ -55,10 +55,16 @@ export interface SpaceSummaryResult {
 }
 
 /**
+ * 进度回调函数类型
+ */
+export type ProgressCallback = (step: string, message: string, details?: any) => void | Promise<void>;
+
+/**
  * 格式化流程：下载 + 转录 + 格式化（不包括总结）
  */
 export async function formatSpaceFromUrl(
-  spaceUrl: string
+  spaceUrl: string,
+  onProgress?: ProgressCallback
 ): Promise<SpaceFormatResult> {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Twitter Space Format Pipeline`);
@@ -67,18 +73,49 @@ export async function formatSpaceFromUrl(
 
   // Step 1: 下载 Space 音频
   console.log(`\n[${'▶'.repeat(3)}] STEP 1: Download Space Audio\n`);
+  await onProgress?.('download', 'Downloading Space audio...', { step: 1, total: 3 });
+
   const downloadResult = await downloadFinishedSpace(spaceUrl);
+
+  const fileSizeMB = require('fs').statSync(downloadResult.audioPath).size / (1024 * 1024);
+  await onProgress?.('download', 'Audio downloaded successfully', {
+    step: 1,
+    total: 3,
+    completed: true,
+    sizeMB: parseFloat(fileSizeMB.toFixed(2)),
+    title: downloadResult.metadata.title
+  });
 
   // Step 2: 转录音频
   console.log(`\n[${'▶'.repeat(3)}] STEP 2: Transcribe Audio\n`);
+  await onProgress?.('transcribe', 'Transcribing audio with Whisper API...', { step: 2, total: 3 });
+
   const transcription = await transcribeAudio(downloadResult.audioPath);
+
+  await onProgress?.('transcribe', 'Transcription complete', {
+    step: 2,
+    total: 3,
+    completed: true,
+    characters: transcription.text.length,
+    durationSeconds: transcription.duration
+  });
 
   // Step 3: 格式化转录稿（识别说话人）
   console.log(`\n[${'▶'.repeat(3)}] STEP 3: Format Transcript (Identify Speakers)\n`);
+  await onProgress?.('format', 'Formatting transcript with GPT-4o...', { step: 3, total: 3 });
+
   const formattedTranscript = await formatTranscript(
     transcription.text,
     downloadResult.metadata.title
   );
+
+  await onProgress?.('format', 'Formatting complete', {
+    step: 3,
+    total: 3,
+    completed: true,
+    participants: formattedTranscript.participants.length,
+    speakerNames: formattedTranscript.participants
+  });
 
   // 生成格式化转录稿的 Markdown
   const formattedTranscriptMarkdown = generateFormattedTranscriptMarkdown(
