@@ -11,6 +11,28 @@ function getOpenAI() {
 }
 
 /**
+ * Get audio chunk duration from environment variable
+ * @returns chunk duration in minutes (default: 10)
+ */
+function getAudioChunkDuration(): number {
+  const envValue = process.env.AUDIO_CHUNK_DURATION_MINUTES;
+
+  if (!envValue) {
+    return 10; // Default: 10 minutes
+  }
+
+  const duration = parseInt(envValue, 10);
+
+  // Validate: must be between 1 and 30 minutes
+  if (isNaN(duration) || duration < 1 || duration > 30) {
+    console.warn(`Invalid AUDIO_CHUNK_DURATION_MINUTES value: ${envValue}. Using default: 10 minutes`);
+    return 10;
+  }
+
+  return duration;
+}
+
+/**
  * 使用 ffmpeg 将音频文件切分成多个块
  * @param audioPath - 原始音频文件路径
  * @param chunkDurationMinutes - 每个块的时长（分钟）
@@ -40,17 +62,19 @@ async function splitAudioIntoChunks(
     console.log(`Running: ${command}`);
     execSync(command, { stdio: 'pipe' });
 
-    // 查找所有生成的块文件
+    // Find all generated chunk files and sort them
+    // Note: FFmpeg generates files as chunk_000, chunk_001, chunk_002, etc.
+    // String sorting works correctly for %03d format (zero-padded)
     const files = fs.readdirSync(dir);
     const chunkFiles = files
       .filter(f => f.startsWith(`${basename}_chunk_`) && f.endsWith(ext))
       .map(f => path.join(dir, f))
-      .sort();
+      .sort(); // Sort alphabetically (chunk_000, chunk_001, chunk_002...)
 
-    console.log(`✓ Split into ${chunkFiles.length} chunks`);
+    console.log(`✓ Split into ${chunkFiles.length} chunks (in order):`);
     chunkFiles.forEach((f, i) => {
       const size = (fs.statSync(f).size / (1024 * 1024)).toFixed(2);
-      console.log(`  Chunk ${i + 1}: ${path.basename(f)} (${size} MB)`);
+      console.log(`  [${i}] ${path.basename(f)} (${size} MB)`);
     });
 
     return chunkFiles;
@@ -126,24 +150,31 @@ export async function transcribeAudio(
     if (stats.size > MAX_SIZE) {
       console.log(`[2/4] File exceeds 25MB limit - using chunked transcription`);
 
+      // 获取配置的切片时长
+      const chunkDuration = getAudioChunkDuration();
+      console.log(`Using chunk duration: ${chunkDuration} minutes (configured via AUDIO_CHUNK_DURATION_MINUTES)`);
+
       // 切分音频文件
-      const chunkFiles = await splitAudioIntoChunks(audioPath);
+      const chunkFiles = await splitAudioIntoChunks(audioPath, chunkDuration);
 
       console.log(`\n[3/4] Transcribing ${chunkFiles.length} chunks in parallel...`);
 
-      // 并行转录所有块
+      // Parallel transcription of all chunks
+      // IMPORTANT: Promise.all preserves the order of results
+      // even though the promises may complete in different orders
       const transcriptionPromises = chunkFiles.map((chunkPath, i) => {
-        console.log(`  Starting chunk ${i + 1}/${chunkFiles.length}: ${path.basename(chunkPath)}`);
+        console.log(`  Starting chunk ${i}/${chunkFiles.length}: ${path.basename(chunkPath)}`);
         return transcribeSingleFile(chunkPath);
       });
 
-      // 等待所有转录完成
+      // Wait for all transcriptions to complete
+      // Results are returned in the same order as the input array
       const chunkResults = await Promise.all(transcriptionPromises);
 
       // 计算总时长
       const totalDuration = chunkResults.reduce((sum, r) => sum + (r.duration || 0), 0);
 
-      // 清理临时块文件
+      // Clean up temporary chunk files
       console.log(`\n  Cleaning up ${chunkFiles.length} temporary chunk files...`);
       chunkFiles.forEach(f => {
         try {
@@ -153,14 +184,18 @@ export async function transcribeAudio(
         }
       });
 
-      // 合并转录结果
-      console.log(`\n[4/4] Merging transcriptions...`);
-      const mergedText = chunkResults.map(r => r.text).join(' ');
+      // Merge transcription results in order
+      console.log(`\n[4/4] Merging transcriptions in sequential order...`);
+      const mergedText = chunkResults.map((r, i) => {
+        const preview = r.text.substring(0, 50).replace(/\n/g, ' ');
+        console.log(`  [${i}] Length: ${r.text.length} chars - Preview: "${preview}..."`);
+        return r.text;
+      }).join(' ');
 
-      console.log(`✓ Transcription completed`);
-      console.log(`✓ Total chunks: ${chunkResults.length}`);
+      console.log(`\n✓ Transcription completed`);
+      console.log(`✓ Total chunks processed: ${chunkResults.length}`);
       console.log(`✓ Total duration: ${totalDuration.toFixed(1)}s`);
-      console.log(`✓ Total text length: ${mergedText.length} characters\n`);
+      console.log(`✓ Merged text length: ${mergedText.length} characters\n`);
 
       return {
         text: mergedText,

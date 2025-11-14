@@ -8,17 +8,17 @@
 import { downloadFinishedSpace, SpaceDownloadResult } from './downloadSpace';
 import { transcribeAudio, TranscriptionResult } from './transcribeAudio';
 import { formatTranscript, FormattedTranscriptResult } from './formatTranscript';
-import { summarizeTranscript, formatSummaryAsMarkdown, SummaryResult } from './summarizeTranscript';
+import * as storage from './storageManager';
 
 /**
- * 生成格式化转录稿的 Markdown
+ * Generate formatted transcript as Markdown
  */
 function generateFormattedTranscriptMarkdown(
   formatted: FormattedTranscriptResult,
   spaceTitle?: string,
   spaceUrl?: string
 ): string {
-  let markdown = `# Twitter Space 完整记录\n\n`;
+  let markdown = `# Twitter Space Transcript\n\n`;
 
   if (spaceTitle) {
     markdown += `## ${spaceTitle}\n\n`;
@@ -28,10 +28,23 @@ function generateFormattedTranscriptMarkdown(
     markdown += `**Space URL:** ${spaceUrl}\n\n`;
   }
 
-  markdown += `**参加会议：** ${formatted.participants.join(', ')}\n\n`;
+  markdown += `**Participants:** ${formatted.participants.join(', ')}\n\n`;
+
+  // Add speaker background information
+  if (formatted.speakerProfiles && formatted.speakerProfiles.length > 0) {
+    markdown += `## Speaker Profiles\n\n`;
+    formatted.speakerProfiles.forEach(profile => {
+      markdown += `### ${profile.name}\n\n`;
+      if (profile.background) {
+        markdown += `${profile.background}\n`;
+      }
+      markdown += `\n`;
+    });
+  }
+
   markdown += `---\n\n`;
   markdown += formatted.formattedText;
-  markdown += `\n\n---\n*格式化整理于 ${new Date().toLocaleString('zh-CN')}*\n`;
+  markdown += `\n\n---\n*Formatted on ${new Date().toISOString()}*\n`;
 
   return markdown;
 }
@@ -44,15 +57,6 @@ export interface SpaceFormatResult {
   formattedTranscriptMarkdown: string;
 }
 
-export interface SpaceSummaryResult {
-  spaceUrl: string;
-  metadata: SpaceDownloadResult['metadata'];
-  transcription: TranscriptionResult;
-  formattedTranscript: FormattedTranscriptResult;
-  summary: SummaryResult;
-  summaryMarkdown: string;
-  formattedTranscriptMarkdown: string;
-}
 
 /**
  * 进度回调函数类型
@@ -61,6 +65,7 @@ export type ProgressCallback = (step: string, message: string, details?: any) =>
 
 /**
  * 格式化流程：下载 + 转录 + 格式化（不包括总结）
+ * 支持缓存：如果 Space 已处理过，直接返回缓存结果
  */
 export async function formatSpaceFromUrl(
   spaceUrl: string,
@@ -70,6 +75,47 @@ export async function formatSpaceFromUrl(
   console.log(`Twitter Space Format Pipeline`);
   console.log(`${'='.repeat(60)}\n`);
   console.log(`Space URL: ${spaceUrl}\n`);
+
+  // Check cache first
+  const spaceId = storage.extractSpaceId(spaceUrl);
+  console.log(`Space ID: ${spaceId}`);
+
+  if (await storage.checkSpaceExists(spaceId)) {
+    console.log(`\n✓ Found cached Space data for ${spaceId}`);
+    console.log(`Loading from storage...\n`);
+
+    const cachedData = await storage.getSpaceData(spaceId);
+    if (cachedData) {
+      await onProgress?.('cache', 'Loaded from cache', {
+        step: 3,
+        total: 3,
+        completed: true,
+        cached: true
+      });
+
+      return {
+        spaceUrl,
+        metadata: {
+          title: cachedData.metadata.title,
+          creator: cachedData.metadata.creator,
+          isAvailableForReplay: true,
+          mediaKey: undefined
+        },
+        transcription: {
+          text: cachedData.transcriptJson.formattedText,
+          duration: cachedData.metadata.audioDuration
+        },
+        formattedTranscript: {
+          participants: cachedData.metadata.participants,
+          speakerProfiles: cachedData.metadata.speakerProfiles,
+          formattedText: cachedData.transcriptJson.formattedText
+        },
+        formattedTranscriptMarkdown: cachedData.transcript
+      };
+    }
+  }
+
+  console.log(`\n⚙️  Processing new Space (not in cache)...\n`);
 
   // Step 1: 下载 Space 音频
   console.log(`\n[${'▶'.repeat(3)}] STEP 1: Download Space Audio\n`);
@@ -124,6 +170,22 @@ export async function formatSpaceFromUrl(
     spaceUrl
   );
 
+  // Save to storage (database + filesystem)
+  console.log(`\n💾 Saving to storage...`);
+  await storage.saveSpace(spaceId, spaceUrl, {
+    title: downloadResult.metadata.title,
+    creator: downloadResult.metadata.creator,
+    audioDuration: transcription.duration,
+    audioPath: downloadResult.audioPath,
+    transcript: formattedTranscriptMarkdown,
+    transcriptJson: {
+      participants: formattedTranscript.participants,
+      speakerProfiles: formattedTranscript.speakerProfiles,
+      formattedText: formattedTranscript.formattedText,
+    },
+  });
+  console.log(`✓ Saved to storage\n`);
+
   console.log(`\n${'='.repeat(60)}`);
   console.log(`✅ Format Pipeline Complete!`);
   console.log(`${'='.repeat(60)}\n`);
@@ -137,64 +199,3 @@ export async function formatSpaceFromUrl(
   };
 }
 
-/**
- * 完整流程：从 Space URL 到总结（包括格式化）
- */
-export async function summarizeSpaceFromUrl(
-  spaceUrl: string
-): Promise<SpaceSummaryResult> {
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`Twitter Space Summarization Pipeline`);
-  console.log(`${'='.repeat(60)}\n`);
-  console.log(`Space URL: ${spaceUrl}\n`);
-
-  // Step 1: 下载 Space 音频
-  console.log(`\n[${'▶'.repeat(3)}] STEP 1: Download Space Audio\n`);
-  const downloadResult = await downloadFinishedSpace(spaceUrl);
-
-  // Step 2: 转录音频
-  console.log(`\n[${'▶'.repeat(3)}] STEP 2: Transcribe Audio\n`);
-  const transcription = await transcribeAudio(downloadResult.audioPath);
-
-  // Step 3: 格式化转录稿（识别说话人）
-  console.log(`\n[${'▶'.repeat(3)}] STEP 3: Format Transcript (Identify Speakers)\n`);
-  const formattedTranscript = await formatTranscript(
-    transcription.text,
-    downloadResult.metadata.title
-  );
-
-  // 生成格式化转录稿的 Markdown
-  const formattedTranscriptMarkdown = generateFormattedTranscriptMarkdown(
-    formattedTranscript,
-    downloadResult.metadata.title,
-    spaceUrl
-  );
-
-  // Step 4: 生成总结（基于格式化后的文本）
-  console.log(`\n[${'▶'.repeat(3)}] STEP 4: Generate Summary\n`);
-  const summary = await summarizeTranscript(
-    formattedTranscript.formattedText,
-    downloadResult.metadata.title
-  );
-
-  // Step 5: 格式化总结为 Markdown
-  const summaryMarkdown = formatSummaryAsMarkdown(
-    summary,
-    downloadResult.metadata.title,
-    spaceUrl
-  );
-
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`✅ Pipeline Complete!`);
-  console.log(`${'='.repeat(60)}\n`);
-
-  return {
-    spaceUrl,
-    metadata: downloadResult.metadata,
-    transcription,
-    formattedTranscript,
-    summary,
-    summaryMarkdown,
-    formattedTranscriptMarkdown,
-  };
-}

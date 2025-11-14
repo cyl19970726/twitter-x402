@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API 测试工具</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #60a5fa;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      margin-bottom: 30px;
+    }
+
+    .endpoint {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .endpoint h2 {
+      color: #818cf8;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+
+    .endpoint-url {
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      color: #22c55e;
+      margin-bottom: 15px;
+      word-break: break-all;
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      color: #cbd5e1;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    input, textarea {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 10px;
+      color: #e2e8f0;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #2563eb;
+    }
+
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+
+    .response {
+      margin-top: 15px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 15px;
+      display: none;
+    }
+
+    .response.show {
+      display: block;
+    }
+
+    .response-header {
+      color: #94a3b8;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+
+    .response-body {
+      background: #020617;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .error {
+      color: #ef4444;
+    }
+
+    .success {
+      color: #22c55e;
+    }
+
+    .warning {
+      color: #f59e0b;
+    }
+
+    .price {
+      display: inline-block;
+      background: #065f46;
+      color: #34d399;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .info-box {
+      background: #1e3a8a;
+      border-left: 4px solid #3b82f6;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 30px;
+    }
+
+    .info-box h3 {
+      color: #60a5fa;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .info-box p {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Agent API 测试工具</h1>
+    <p class="subtitle">测试所有 x402 付费端点（无需真实支付）</p>
+
+    <div class="info-box">
+      <h3>💡 说明</h3>
+      <p>
+        • 所有端点只接受 <strong>POST</strong> 请求（浏览器地址栏是 GET，所以会 404）<br>
+        • 返回 "X-PAYMENT header is required" 表示端点正常工作<br>
+        • 真实支付需要使用 x402-fetch 或提供支付证明<br>
+        • 测试功能请使用: <code>bun run scripts/test-direct.ts</code>
+      </p>
+    </div>
+
+    <!-- Transcribe Space -->
+    <div class="endpoint">
+      <h2>1. Transcribe Space <span class="price">0.2 USDC</span></h2>
+      <div class="endpoint-url">POST /entrypoints/transcribe-space/invoke</div>
+
+      <div class="input-group">
+        <label>Space URL:</label>
+        <input type="text" id="transcribe-url" value="https://twitter.com/i/spaces/1RDxlAoOeQRKL" placeholder="Space URL">
+      </div>
+
+      <div class="input-group">
+        <label>Title (可选):</label>
+        <input type="text" id="transcribe-title" placeholder="Space Title">
+      </div>
+
+      <button onclick="testTranscribe()">🚀 测试</button>
+
+      <div class="response" id="transcribe-response">
+        <div class="response-header">Response:</div>
+        <div class="response-body" id="transcribe-body"></div>
+      </div>
+    </div>
+
+    <!-- Unlock Chat -->
+    <div class="endpoint">
+      <h2>2. Unlock Space Chat <span class="price">0.5 USDC</span></h2>
+      <div class="endpoint-url">POST /entrypoints/unlock-space-chat/invoke</div>
+
+      <div class="input-group">
+        <label>Space ID:</label>
+        <input type="text" id="unlock-spaceid" value="1RDxlAoOeQRKL" placeholder="Space ID">
+      </div>
+
+      <button onclick="testUnlock()">🔓 测试</button>
+
+      <div class="response" id="unlock-response">
+        <div class="response-header">Response:</div>
+        <div class="response-body" id="unlock-body"></div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="endpoint">
+      <h2>3. Chat with Spaces <span class="price">0.9 + 0.1n USDC</span></h2>
+      <div class="endpoint-url">POST /entrypoints/chat-with-spaces/invoke</div>
+
+      <div class="input-group">
+        <label>Space IDs (JSON 数组):</label>
+        <textarea id="chat-spaceids">["1RDxlAoOeQRKL"]</textarea>
+      </div>
+
+      <div class="input-group">
+        <label>Question:</label>
+        <input type="text" id="chat-question" value="What were the main topics discussed?" placeholder="Your question">
+      </div>
+
+      <button onclick="testChat()">💬 测试</button>
+
+      <div class="response" id="chat-response">
+        <div class="response-header">Response:</div>
+        <div class="response-body" id="chat-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const AGENT_URL = 'http://localhost:8787';
+
+    async function testTranscribe() {
+      const url = document.getElementById('transcribe-url').value;
+      const title = document.getElementById('transcribe-title').value;
+
+      const body = { spaceUrl: url };
+      if (title) body.title = title;
+
+      await makeRequest(
+        `${AGENT_URL}/entrypoints/transcribe-space/invoke`,
+        body,
+        'transcribe-response',
+        'transcribe-body'
+      );
+    }
+
+    async function testUnlock() {
+      const spaceId = document.getElementById('unlock-spaceid').value;
+
+      await makeRequest(
+        `${AGENT_URL}/entrypoints/unlock-space-chat/invoke`,
+        { spaceId },
+        'unlock-response',
+        'unlock-body'
+      );
+    }
+
+    async function testChat() {
+      const spaceIds = JSON.parse(document.getElementById('chat-spaceids').value);
+      const question = document.getElementById('chat-question').value;
+
+      await makeRequest(
+        `${AGENT_URL}/entrypoints/chat-with-spaces/invoke`,
+        { spaceIds, question },
+        'chat-response',
+        'chat-body'
+      );
+    }
+
+    async function makeRequest(url, body, responseId, bodyId) {
+      const responseDiv = document.getElementById(responseId);
+      const bodyDiv = document.getElementById(bodyId);
+
+      responseDiv.classList.add('show');
+      bodyDiv.innerHTML = '<span class="warning">Loading...</span>';
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        let className = 'success';
+        if (data.error) {
+          className = data.error.includes('X-PAYMENT') ? 'warning' : 'error';
+        }
+
+        bodyDiv.innerHTML = `<span class="${className}">${JSON.stringify(data, null, 2)}</span>`;
+      } catch (error) {
+        bodyDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+      }
+    }
+  </script>
+</body>
+</html>

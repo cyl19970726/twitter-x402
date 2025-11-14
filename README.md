@@ -1,366 +1,439 @@
-# Twitter Space Summarization Agent
+# Twitter Space Platform
 
-AI-powered agent that downloads, transcribes, and summarizes Twitter Spaces with speaker identification. Built on [@lucid-dreams/agent-kit](https://www.npmjs.com/package/@lucid-dreams/agent-kit) and x402 payment protocol.
+AI-powered platform for transcribing, storing, and chatting with Twitter Spaces. Built with database-backed storage, dual API layers (paid x402 + free HTTP), background job processing, and an interactive dashboard.
 
 ## Features
 
-🎙️ **Download Finished Spaces** - Downloads audio from completed Twitter Spaces
-🗣️ **Speaker Identification** - Uses GPT-4o to identify and label speakers
-📝 **Formatted Transcripts** - Structured dialogue with speaker names
-📊 **AI Summarization** - Key points and topics with GPT-4o mini
-🔐 **Cookie Authentication** - Bypasses Cloudflare protection
+🎙️ **Space Transcription** - Download and transcribe Twitter Spaces with speaker identification
+💾 **Persistent Storage** - SQLite database with filesystem storage for audio/transcripts
+💰 **Monetized APIs** - Three payment tiers via x402 protocol (transcription, chat unlock, chat queries)
+🔓 **Free APIs** - HTTP endpoints for dashboard and user data
+🤖 **AI-Powered Chat** - Ask questions about Spaces using GPT-4o
+⚙️ **Background Processing** - Async job queue with retry logic
+📊 **Interactive Dashboard** - Web UI with wallet authentication
+🔒 **Wallet-Based Auth** - MetaMask integration with EIP-191 signatures
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Frontend (Dashboard)                 │
+│              MetaMask + Vanilla JS + Responsive          │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                          ├──────────────────┐
+                          │                  │
+              ┌───────────▼──────┐  ┌───────▼──────────┐
+              │   Free HTTP API  │  │  Paid x402 APIs  │
+              │   (Hono Server)  │  │  (Agent-Kit)     │
+              └───────────┬──────┘  └───────┬──────────┘
+                          │                  │
+                          │   ┌──────────────┘
+                          │   │
+                    ┌─────▼───▼──────┐
+                    │   Database      │
+                    │   (SQLite)      │
+                    └─────────┬───────┘
+                              │
+                    ┌─────────▼───────┐
+                    │  Job Queue      │
+                    └─────────┬───────┘
+                              │
+                    ┌─────────▼───────┐
+                    │ Background      │
+                    │ Worker          │
+                    └─────────────────┘
+```
 
 ## Quick Start
 
+### 1. Install Dependencies
+
 ```bash
-# Install dependencies
 bun install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your TWITTER_COOKIES and OPENAI_API_KEY
-
-# Start the agent
-bun run src/index.ts
 ```
 
-The agent will be available at `http://localhost:8787/.well-known/agent.json`
-
-## Agent Entrypoints
-
-### 1. `format-twitter-space`
-
-Formats a Twitter Space into a structured dialogue with speaker identification.
-
-**Input:**
-```json
-{
-  "spaceUrl": "https://x.com/i/spaces/1RDxlAoOeQRKL"
-}
-```
-
-**Output:**
-```json
-{
-  "formattedTranscript": "# Twitter Space 完整记录\n\n参加会议：Host, Ash, Kevin...\n\n[Host]: ...\n[Ash]: ...",
-  "participants": ["Host", "Ash", "Kevin", "Eric", "Loaf", "JRP", "Sawyer", "Bingey"],
-  "title": "Launch an <x402 startup> in 20 minutes",
-  "duration": 2160.7
-}
-```
-
-### 2. `summarize-twitter-space`
-
-Generates a comprehensive summary with key points and topics.
-
-**Input:**
-```json
-{
-  "spaceUrl": "https://x.com/i/spaces/1RDxlAoOeQRKL"
-}
-```
-
-**Output:**
-```json
-{
-  "summary": "# Twitter Space Summary\n\n## Summary\n\n...\n\n## Key Points\n\n...",
-  "title": "Launch an <x402 startup> in 20 minutes",
-  "duration": 2160.7,
-  "participants": ["Host", "Ash", "Kevin", ...]
-}
-```
-
-## API Usage
+### 2. Setup Environment
 
 ```bash
-# Format transcript
-curl -X POST http://localhost:8787/invoke/format-twitter-space \
-  -H "Content-Type: application/json" \
-  -d '{"spaceUrl": "https://x.com/i/spaces/1RDxlAoOeQRKL"}'
-
-# Generate summary
-curl -X POST http://localhost:8787/invoke/summarize-twitter-space \
-  -H "Content-Type: application/json" \
-  -d '{"spaceUrl": "https://x.com/i/spaces/1RDxlAoOeQRKL"}'
+cp .env.example .env
 ```
+
+Edit `.env` with your configuration:
+
+```bash
+# Required
+PRIVATE_KEY=your_wallet_private_key
+TWITTER_COOKIES='[{"key":"auth_token","value":"..."}]'
+OPENAI_API_KEY=your_openai_api_key
+
+# Optional (with defaults)
+DATABASE_URL=./data/database/spaces.db
+API_PORT=3001
+WORKER_POLL_INTERVAL_MS=10000
+```
+
+### 3. Setup Database
+
+```bash
+# Run migrations
+bun run scripts/migrate.ts
+```
+
+### 4. Start Services
+
+```bash
+# Terminal 1: Start paid agent (x402 APIs)
+bun run dev
+
+# Terminal 2: Start free API server
+bun run src/api/server.ts
+
+# Terminal 3: Start background worker
+bun run worker
+
+# Terminal 4: Serve dashboard (optional)
+bun --bun run public/index.html
+```
+
+## API Overview
+
+### Paid x402 APIs (via Agent-Kit)
+
+**Base URL:** `http://localhost:8787`
+
+#### 1. Transcribe Space
+- **Endpoint:** `POST /invoke/transcribe-space`
+- **Price:** 0.2 USDC
+- **Description:** Queue Space transcription job
+- **Input:**
+  ```json
+  {
+    "spaceUrl": "https://twitter.com/i/spaces/1RDxlAoOeQRKL",
+    "title": "My Space"
+  }
+  ```
+- **Output:**
+  ```json
+  {
+    "success": true,
+    "spaceId": "1RDxlAoOeQRKL",
+    "estimatedTimeMinutes": 4
+  }
+  ```
+
+#### 2. Unlock Chat
+- **Endpoint:** `POST /invoke/unlock-space-chat`
+- **Price:** 0.5 USDC
+- **Description:** Unlock AI chat for a Space
+- **Input:**
+  ```json
+  {
+    "spaceId": "1RDxlAoOeQRKL"
+  }
+  ```
+
+#### 3. Chat with Spaces
+- **Endpoint:** `POST /invoke/chat-with-spaces`
+- **Price:** 0.9 + 0.1n USDC (n = additional Spaces)
+- **Description:** Ask questions about one or more Spaces
+- **Input:**
+  ```json
+  {
+    "spaceIds": ["1RDxlAoOeQRKL", "1vOxwAbcdEFGH"],
+    "question": "What were the main topics discussed?"
+  }
+  ```
+- **Output:**
+  ```json
+  {
+    "answer": "The main topics were...",
+    "sources": [
+      {
+        "spaceId": "1RDxlAoOeQRKL",
+        "title": "My Space",
+        "excerpt": "..."
+      }
+    ],
+    "spaceCount": 2,
+    "model": "gpt-4o"
+  }
+  ```
+
+### Free HTTP APIs
+
+**Base URL:** `http://localhost:3001`
+
+**Authentication:** All requests require wallet signature query parameters:
+- `wallet` - Wallet address
+- `signature` - EIP-191 signature
+- `timestamp` - Unix timestamp
+
+#### User APIs
+
+- `GET /api/user/stats` - User statistics
+- `GET /api/user/payments` - Payment history
+
+#### Space APIs
+
+- `GET /api/spaces/mine` - User's Spaces
+- `GET /api/spaces/search?q=query` - Search Spaces
+- `GET /api/spaces/:spaceId` - Space details
+- `GET /api/spaces/:spaceId/transcript` - Space transcript
+- `GET /api/spaces/:spaceId/chat-status` - Chat unlock status
+- `GET /api/spaces/popular` - Popular Spaces
 
 ## Project Structure
 
 ```
 dreams/
-├── README.md                    # This file
-├── docs/                        # Documentation
-│   ├── USAGE_GUIDE.md          # Detailed guide (中文)
-│   ├── COOKIE_EXPORT_GUIDE.md  # Cookie instructions
-│   └── PROJECT_STRUCTURE.md    # Complete structure
-├── src/                         # Source code
-│   ├── agent.ts                # Agent manifest
-│   ├── index.ts                # HTTP server
-│   ├── buildCookies.ts         # Cookie helper
-│   ├── verifyCookies.ts        # Cookie validator
-│   └── utils/                  # Core functionality
-│       ├── downloadSpace.ts    # Download Space
-│       ├── transcribeAudio.ts  # Whisper API
-│       ├── formatTranscript.ts # Speaker ID
-│       ├── summarizeTranscript.ts # Summarization
-│       └── summarizeSpace.ts   # Pipeline
-└── tests/                       # Test scripts
-    ├── testAuth.ts             # Auth test
-    ├── testDownload.ts         # Download test
-    ├── testTranscribe.ts       # Transcribe test
-    ├── testFormat.ts           # Format test
-    ├── testSummarize.ts        # Summarize test
-    └── testEndToEnd.ts         # E2E test
+├── src/
+│   ├── agent/
+│   │   ├── agent.ts                    # Agent manifest
+│   │   └── entrypoints/                # x402 paid endpoints
+│   │       ├── transcribeSpace.ts      # Transcription (0.2 USDC)
+│   │       ├── unlockChat.ts           # Chat unlock (0.5 USDC)
+│   │       └── chatWithSpaces.ts       # Chat query (0.9 + 0.1n USDC)
+│   ├── api/
+│   │   ├── server.ts                   # Hono HTTP server
+│   │   ├── middleware/
+│   │   │   └── auth.ts                 # Wallet signature verification
+│   │   └── routes/
+│   │       ├── user.ts                 # User endpoints
+│   │       └── spaces.ts               # Space endpoints
+│   ├── db/
+│   │   ├── client.ts                   # Database connection
+│   │   ├── schema/                     # Drizzle schemas
+│   │   │   ├── spaces.ts               # Space metadata
+│   │   │   ├── users.ts                # User records
+│   │   │   ├── payments.ts             # Payment tracking
+│   │   │   └── jobs.ts                 # Job queue
+│   │   └── queries/                    # Database queries
+│   │       ├── spaces.ts
+│   │       ├── users.ts
+│   │       ├── payments.ts
+│   │       └── queue.ts
+│   ├── services/
+│   │   ├── paymentService.ts           # Payment tracking
+│   │   └── chatService.ts              # OpenAI chat integration
+│   ├── worker/
+│   │   └── transcriptionWorker.ts      # Background job processor
+│   └── utils/
+│       ├── downloadSpace.ts            # Download Twitter Space
+│       ├── transcribeAudio.ts          # Whisper transcription
+│       ├── formatTranscript.ts         # Speaker identification
+│       ├── storageManager.ts           # File storage
+│       └── summarizeSpace.ts           # Complete pipeline
+├── public/
+│   ├── index.html                      # Dashboard home
+│   ├── space.html                      # Space details page
+│   ├── css/
+│   │   └── styles.css                  # Responsive styles
+│   └── js/
+│       ├── wallet.js                   # MetaMask integration
+│       ├── api.js                      # API client
+│       ├── utils.js                    # UI utilities
+│       └── app.js                      # Main app logic
+├── tests/
+│   ├── unit/                           # Unit tests
+│   └── integration/                    # Integration tests
+├── scripts/
+│   ├── migrate.ts                      # Database migration
+│   ├── worker.ts                       # Worker startup
+│   └── test.ts                         # Test runner
+└── docs/
+    ├── API.md                          # API documentation
+    └── DEPLOYMENT.md                   # Deployment guide
 ```
 
-## Setup
+## Payment Structure
 
-### 1. Environment Variables
-
-Create a `.env` file with:
-
-```bash
-# Twitter Authentication (required)
-TWITTER_COOKIES='[{"key":"auth_token","value":"YOUR_TOKEN","domain":".twitter.com","path":"/"},{"key":"ct0","value":"YOUR_CT0","domain":".twitter.com","path":"/"}]'
-
-# OpenAI API Key (required)
-OPENAI_API_KEY=sk-...
-
-# Agent Configuration (optional)
-PORT=8787
-API_BASE_URL=http://localhost:8787
-```
-
-### 2. Getting Twitter Cookies
-
-**Method 1: Build from tokens**
-```bash
-bun run src/buildCookies.ts <auth_token> <ct0>
-```
-
-**Method 2: Manual export**
-1. Log in to Twitter/X in your browser
-2. Open DevTools (F12) → Application → Cookies
-3. Find `auth_token` and `ct0` cookies
-4. Copy their values
-
-See [COOKIE_EXPORT_GUIDE.md](./docs/COOKIE_EXPORT_GUIDE.md) for detailed instructions.
-
-### 3. Verify Setup
-
-```bash
-# Test authentication
-bun run tests/testAuth.ts
-
-# Test download
-bun run tests/testDownload.ts https://x.com/i/spaces/1RDxlAoOeQRKL
-
-# Test complete pipeline
-bun run tests/testEndToEnd.ts https://x.com/i/spaces/1RDxlAoOeQRKL
-```
+| Service | Price | Description |
+|---------|-------|-------------|
+| **Transcription** | 0.2 USDC | Queue Space for transcription |
+| **Chat Unlock** | 0.5 USDC | Unlock AI chat for a Space |
+| **Chat Query** | 0.9 + 0.1n USDC | Ask questions (n = additional Spaces, max 10) |
 
 ## Processing Pipeline
 
 ```
-Space URL
-    ↓
-[1] Download Audio (FFmpeg HLS download)
-    ↓
-[2] Transcribe (OpenAI Whisper)
-    ↓
-[3] Format & Identify Speakers (GPT-4o)
-    ↓         ↓
-    ↓     [Output 1] Formatted Transcript
-    ↓
-[4] Generate Summary (GPT-4o mini)
-    ↓
-[Output 2] Summary + Participants
+User Payment → Queue Job → Background Worker → Transcription Complete
+      ↓
+   Database Record
+      ↓
+Dashboard Updates
+      ↓
+Optional: Chat Unlock → Chat Queries
 ```
 
-**Processing Time (36min Space):**
-- Download: ~30 seconds
-- Transcribe: ~2.5 minutes
-- Format: ~1 minute
-- Summarize: ~10 seconds
-- **Total: ~4-5 minutes**
+**Transcription Flow:**
+1. User pays 0.2 USDC via x402
+2. Space record created in database (status: pending)
+3. Job queued for background processing
+4. Worker polls queue every 10 seconds
+5. Worker processes: Download → Transcribe → Format → Save
+6. Space status updated to 'completed'
+7. User can view transcript in dashboard
+
+**Chat Flow:**
+1. User unlocks chat for 0.5 USDC
+2. Chat unlock recorded in database
+3. User asks questions for 0.9 + 0.1n USDC
+4. GPT-4o generates answer from transcript(s)
+5. Chat session recorded with question/answer
+
+## Testing
+
+```bash
+# Run all tests
+bun test
+
+# Run specific test suites
+bun test:unit           # Unit tests
+bun test:integration    # Integration tests
+
+# Type checking
+bun run typecheck
+```
+
+## Development
+
+```bash
+# Start in development mode (hot reload)
+bun run dev
+
+# View database
+bun run db:studio
+
+# Generate migrations
+bun run db:generate
+```
+
+## Dashboard Features
+
+- **Wallet Connection** - MetaMask integration with EIP-191 signing
+- **User Stats** - Spaces owned, transcriptions purchased, chats unlocked, total spent
+- **Space List** - View all purchased Spaces with search
+- **Space Details** - View transcript, chat interface
+- **Chat Interface** - Ask questions about unlocked Spaces (redirects to agent-kit API)
+
+## Environment Variables
+
+See `.env.example` for complete list.
+
+**Required:**
+- `PRIVATE_KEY` - Wallet private key for signing x402 payments
+- `TWITTER_COOKIES` - Twitter authentication cookies
+- `OPENAI_API_KEY` - OpenAI API key for chat
+
+**Optional:**
+- `DATABASE_URL` - SQLite database path (default: `./data/database/spaces.db`)
+- `API_PORT` - Free API port (default: `3001`)
+- `PORT` - Agent port (default: `8787`)
+- `WORKER_POLL_INTERVAL_MS` - Job polling interval (default: `10000`)
+
+## Deployment
+
+See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for production deployment guide.
+
+**Recommended:**
+- **Agent (x402):** Vercel or Railway
+- **API Server:** Railway or Fly.io
+- **Worker:** Railway (always-on)
+- **Dashboard:** Vercel or Netlify
+- **Database:** Railway PostgreSQL or Turso (SQLite edge)
 
 ## Cost Estimation
 
 For a typical 36-minute Space:
 
-| Step | Service | Cost |
-|------|---------|------|
-| Download | FFmpeg | Free |
-| Transcribe | Whisper API ($0.006/min) | $0.36 |
-| Format | GPT-4o | $0.48 |
-| Summarize | GPT-4o mini | $0.02 |
-| **Total** | | **$0.86** |
+| Service | Cost |
+|---------|------|
+| Whisper API ($0.006/min) | $0.36 |
+| GPT-4o (speaker ID) | $0.48 |
+| **Total per transcription** | **$0.84** |
 
-## Testing Scripts
-
-```bash
-# Individual components
-bun run tests/testDownload.ts <space_url>
-bun run tests/testTranscribe.ts <audio_path>
-bun run tests/testFormat.ts <transcript_path>
-bun run tests/testSummarize.ts <transcript_path>
-
-# Complete end-to-end
-bun run tests/testEndToEnd.ts <space_url>
-```
-
-## Output Examples
-
-### Formatted Transcript Output
-
-```markdown
-# Twitter Space 完整记录
-
-## Launch an <x402 startup> in 20 minutes
-
-**Space URL:** https://x.com/i/spaces/1RDxlAoOeQRKL
-
-**参加会议：** Host, Ash, Kevin, Eric, Loaf, JRP, Sawyer, Bingey
-
----
-
-[Host]: Mic check. 1, 2, 1, 2. Can anyone hear?
-[Ash]: Yeah. Okay. Thank you.
-[Host]: I've accidentally run this off my laptop rather than my phone...
-[Kevin]: Hello, GM. How's it going?
-[Host]: That's great. Oh, relief. GM, guys...
-```
-
-### Summary Output
-
-```markdown
-# Twitter Space Summary
-
-## Launch an <x402 startup> in 20 minutes
-
-## Summary
-
-The Twitter Space featured a vibrant discussion on the X402 protocol
-and opportunities for startups in the AI and crypto space...
-
-## Key Points
-
-1. The X402 protocol opens unique opportunities for startups
-2. Significant potential for microservices utilized by AI agents
-3. Importance of collaboration among builders
-4. Facilitators and gas costs are critical factors
-
-## Topics Discussed
-
-- X402 Protocol
-- AI and Crypto Integration
-- Microservices Development
-- Agent-to-Agent Commerce
-```
-
-## Technical Details
-
-### Twitter API Integration
-
-Uses direct Twitter GraphQL API calls with proper feature flags (works around bugs in `@pacoyang/agent-twitter-client`):
-
-- **AudioSpaceById** - Fetch Space metadata
-- **live_video_stream/status** - Get HLS URL for download
-
-### Models Used
-
-- **Transcription:** Whisper-1
-- **Speaker Identification:** GPT-4o (better context understanding)
-- **Summarization:** GPT-4o mini (cost-effective)
-
-### Speaker Identification
-
-GPT-4o identifies speakers based on:
-- Dialogue content and context
-- Tone and style changes
-- Known participant information from Space metadata
-
-Accuracy depends on:
-- Clarity of the conversation
-- Distinct speaking styles
-- Rich contextual clues
-
-## Limitations
-
-- ⚠️ **File Size:** Audio files must be under 25MB (~40 minutes)
-- ⚠️ **Replay Only:** Only works with Spaces that have replay enabled
-- ⚠️ **Cookie Expiration:** Twitter cookies may expire and need refresh
-- ⚠️ **Rate Limits:** Subject to Twitter and OpenAI API rate limits
+Chat costs (per query):
+| Service | Cost |
+|---------|------|
+| GPT-4o (1500 tokens) | ~$0.02 |
 
 ## Troubleshooting
 
-### "Failed to fetch Audio Space"
-- Verify cookies: `bun run tests/testAuth.ts`
-- Check Space has replay enabled
-- Ensure correct URL format
+### Database Errors
+```bash
+# Reset database
+rm -rf data/database/spaces.db
+bun run scripts/migrate.ts
+```
 
-### "Audio file is too large"
-- Space recording exceeds 25MB
-- Future: Audio chunking support
+### Worker Not Processing
+```bash
+# Check worker logs
+bun run worker
 
-### "Missing TWITTER_COOKIES"
-- Check `.env` file exists and has correct format
-- Verify cookies: `bun run src/verifyCookies.ts`
+# Verify jobs in queue
+bun run db:studio
+```
+
+### MetaMask Connection Issues
+- Ensure MetaMask is installed
+- Check browser console for errors
+- Verify wallet signature format
 
 ## Documentation
 
-- [USAGE_GUIDE.md](./docs/USAGE_GUIDE.md) - Detailed usage guide (中文)
-- [COOKIE_EXPORT_GUIDE.md](./docs/COOKIE_EXPORT_GUIDE.md) - Cookie export instructions
-- [PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md) - Complete project structure and file descriptions
+- [API.md](./docs/API.md) - Complete API reference
+- [DEPLOYMENT.md](./docs/DEPLOYMENT.md) - Deployment guide
+- [COOKIE_EXPORT_GUIDE.md](./docs/COOKIE_EXPORT_GUIDE.md) - Twitter cookie setup
 
-## Available Scripts
+## Scripts
 
 ```bash
 # Development
-bun run dev              # Start agent in watch mode
-bun run src/index.ts     # Start agent once
+bun run dev                 # Start agent with hot reload
+bun run worker              # Start background worker
 
 # Testing
-bun run tests/testAuth.ts                    # Test Twitter authentication
-bun run tests/testDownload.ts <url>          # Test download
-bun run tests/testTranscribe.ts <audio>      # Test transcription
-bun run tests/testFormat.ts <transcript>     # Test formatting
-bun run tests/testSummarize.ts <transcript>  # Test summarization
-bun run tests/testEndToEnd.ts <url>          # Test complete pipeline
+bun test                    # Run all tests
+bun test:unit               # Unit tests
+bun test:integration        # Integration tests
+bun run typecheck           # TypeScript checking
 
-# Type checking
-bunx tsc --noEmit
+# Database
+bun run db:generate         # Generate migrations
+bun run db:migrate          # Apply migrations
+bun run db:studio           # Open Drizzle Studio
+bun run scripts/migrate.ts  # Programmatic migration
+
+# Production
+bun run start               # Start agent
+bun run src/api/server.ts   # Start API server
 ```
 
-## Example Usage
+## Tech Stack
 
-```bash
-# 1. Start the agent
-bun run src/index.ts
-
-# 2. In another terminal, call the API
-curl -X POST http://localhost:8787/invoke/format-twitter-space \
-  -H "Content-Type: application/json" \
-  -d '{
-    "spaceUrl": "https://x.com/i/spaces/1RDxlAoOeQRKL"
-  }' | jq .
-
-# 3. View the results
-cat /tmp/space_formatted_*.md
-cat /tmp/space_summary_*.md
-```
+- **Runtime:** Bun (fast JavaScript runtime)
+- **Database:** SQLite with Drizzle ORM
+- **Agent Framework:** @lucid-dreams/agent-kit (x402)
+- **API Server:** Hono (fast HTTP framework)
+- **AI:** OpenAI (Whisper + GPT-4o)
+- **Payment:** x402 protocol (USDC on Base)
+- **Frontend:** Vanilla JS + MetaMask
+- **Testing:** Bun test runner
 
 ## License
 
-Built on [@lucid-dreams/agent-kit](https://www.npmjs.com/package/@lucid-dreams/agent-kit)
+MIT
 
 ## Contributing
 
-This agent demonstrates:
-- Direct Twitter GraphQL API integration
-- Cookie-based authentication
-- Multi-step AI pipeline (Whisper → GPT-4o → GPT-4o mini)
-- x402 payment protocol integration
-- Speaker diarization with LLMs
+Contributions welcome! This project demonstrates:
+- x402 micropayment integration
+- Database-backed agent architecture
+- Dual API design (paid + free)
+- Background job processing
+- Wallet-based authentication
+- AI-powered chat with RAG
 
-Feel free to extend or modify for your use case!
+Built with [@lucid-dreams/agent-kit](https://www.npmjs.com/package/@lucid-dreams/agent-kit)

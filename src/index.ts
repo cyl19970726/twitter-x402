@@ -1,4 +1,4 @@
-import { app } from "./agent-improved";
+import { app } from "./agent/agent";
 
 // Debug: Log environment variables on startup
 console.log("=== Environment Variables Check ===");
