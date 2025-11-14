@@ -1,0 +1,20 @@
+# Railway ignore file
+# 这些文件不需要上传到 Railway
+
+# 本地数据
+data/
+logs/
+*.log
+
+# 开发文件
+node_modules/
+.env.local
+.DS_Store
+
+# 测试文件
+tests/
+scripts/test-*.ts
+
+# 文档（可选，如果想减少构建大小）
+# docs/
+# *.md
