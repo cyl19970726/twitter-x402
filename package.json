@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@coinbase/x402": "^0.7.1",
+    "@openai/agents": "^0.3.2",
     "@rainbow-me/rainbowkit": "^2.2.9",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.7",
